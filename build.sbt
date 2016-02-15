@@ -13,9 +13,6 @@ resolvers ++= Seq(
 sparkComponents := Seq("core", "sql", "mllib")
 
 libraryDependencies ++= Seq(
-  "org.apache.spark" %% "spark-core" % "1.6.0",
-  "org.apache.spark" %% "spark-sql" % "1.6.0",
-  "org.apache.spark" %% "spark-mllib" % "1.6.0",
   "com.emc.ecs" % "object-client" % "2.1.2-dev.6.uncommitted+b0a8f4f",
   "org.scalatest" %% "scalatest" % "2.2.5" % Test
 )
