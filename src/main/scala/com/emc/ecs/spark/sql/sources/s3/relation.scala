@@ -1,6 +1,7 @@
 package com.emc.ecs.spark.sql.sources.s3
 
 import java.net.URI
+import java.sql.Timestamp
 import java.time.Instant
 
 import com.emc.`object`.s3.bean._
@@ -35,11 +36,13 @@ private class BucketMetadataRelation(
     val usermd = new MetadataBuilder().putString(SqlMetadataKeys.MetadataType, USERMD.toString).build()
 
     StructType(
-      Option(metadataKeys.getIndexableKeys).map(keys => keys.map(key => key.toStructField(usermd)).toList).getOrElse(Nil) ++
-        (if(withSystemMetadata) Option(sysKeys.getIndexableKeys).map(keys => keys.map(key => key.toStructField(sysmd))).getOrElse(Nil) else Nil) ++
-        (if(withSystemMetadata) Option(sysKeys.getOptionalAttributes).map(keys => keys.map(key => key.toStructField(sysmd))).getOrElse(Nil) else Nil) ++
-        Seq(StructField("Key", StringType, nullable = false, sysmd)) ++
-        Nil
+      Option(metadataKeys.getIndexableKeys).map(_.map(_.toStructField(usermd)).toList).getOrElse(Nil) ++
+      (if(withSystemMetadata)
+        Option(sysKeys.getIndexableKeys).map(_.map(_.toStructField(sysmd))).getOrElse(Nil) ++
+        Option(sysKeys.getOptionalAttributes).map(_.map(_.toStructField(sysmd))).getOrElse(Nil)
+      else Nil) ++
+      Seq(StructField("Key", StringType, nullable = false, sysmd)) ++
+      Nil
     )
   }
 
@@ -92,12 +95,16 @@ private class BucketMetadataRDD(
 
     val request = new QueryObjectsRequest(bucketName)
       .withQuery(query)
+      .withAttribute("LastModified") // hack: hardcoded attribute for demonstration purposes
 
     paged(request).flatMap(result => result.map(convertToRow))
   }
 
   case class ObjectData(key: String, usermd: Map[String,String], sysmd: Map[String,String])
 
+  /**
+    * Convert the given object metadata to a Spark SQL row object.
+    */
   private def convertToRow(obj: BucketQueryObject): Row = {
     val data = ObjectData(
       obj.getObjectName,
@@ -107,17 +114,22 @@ private class BucketMetadataRDD(
     Row.fromSeq(cols.map(_.apply(data)))
   }
 
+  /**
+    * An array of column value generators, ordered according to `requiredColumns`.
+    */
   private lazy val cols: Array[ObjectData => Any] = {
     requiredColumns.map(schema(_)).map { field =>
       val mdtype = MetadataType.valueOf(field.metadata.getString(SqlMetadataKeys.MetadataType))
+
       (field.name, mdtype, field.dataType) match {
-        case ("Key", MetadataType.SYSMD, _) => (o: ObjectData) => o.key
-        case (name, MetadataType.SYSMD, _) => (o: ObjectData) => sys.error(s"unsupported field [$name]")
+        case ("Key", MetadataType.SYSMD, StringType) => (o: ObjectData) => o.key
+        case ("LastModified", MetadataType.SYSMD, TimestampType) => (o: ObjectData) => o.sysmd.get("mtime").map(_.toLong).map(new Timestamp(_)).orElse(null)
+        case (name, MetadataType.SYSMD, _) => (o: ObjectData) => null
         case (name, MetadataType.USERMD, StringType) => (o: ObjectData) => o.usermd.getOrElse(name, null)
         case (name, MetadataType.USERMD, IntegerType) => (o: ObjectData) => o.usermd.get(name).map(_.toInt).orElse(null)
         case (name, MetadataType.USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(name).map(Instant.parse).orElse(null)
         case (name, MetadataType.USERMD, DoubleType) => (o: ObjectData) => o.usermd.get(name).map(_.toDouble).orElse(null)
-        case (_, MetadataType.USERMD, _) => sys.error(s"unsupported dataType [${field.dataType}]")
+        case (_, MetadataType.USERMD, dt) => sys.error(s"unsupported dataType [$dt]")
       }
     }
   }

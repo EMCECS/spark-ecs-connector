@@ -12,7 +12,7 @@ object Example extends App {
   val sc = new SparkContext(sparkConf)
   val sqlContext = new SQLContext(sc)
 
-  val df = sqlContext.read.bucket(endpointUri, credential, "ben_bucket", withSystemMetadata = false)
+  val df = sqlContext.read.bucket(endpointUri, credential, "ben_bucket", withSystemMetadata = true)
   df.registerTempTable("ben_bucket")
 
   sqlContext.sql(
