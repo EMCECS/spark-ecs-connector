@@ -2,6 +2,7 @@ package com.emc.ecs.spark.sql.sources.s3
 
 import java.net.URI
 import java.sql.Timestamp
+import com.emc.`object`.s3.bean.MetadataType._
 import org.joda.time.Instant
 import com.emc.`object`.s3.S3Config
 import com.emc.`object`.s3.bean.{MetadataSearchDatatype, MetadataSearchKey}
@@ -19,11 +20,11 @@ private[spark] object Conversions {
   private val userMetadataPrefix = """x-amz-meta-(.*)""".r
 
   implicit class MetadataSearchKeyConversions(key: MetadataSearchKey) {
-    def toStructField(metadata: Metadata): StructField = {
+    def toStructField(metadata: MetadataBuilder): StructField = {
       StructField(
         name = key.getName match {
-          //case userMetadataPrefix(key) => key
-          case key: String => key
+          case userMetadataPrefix(name) => name
+          case name: String => name
         },
         dataType = key.getDatatype match {
           case MetadataSearchDatatype.String => StringType
@@ -33,7 +34,7 @@ private[spark] object Conversions {
           case _ => sys.error(s"unsupported datatype: ${key.getDatatype}")
         },
         nullable = true,
-        metadata
+        metadata.putString(SqlMetadataKeys.MetadataName, key.getName).build()
       )
     }
   }
@@ -41,6 +42,7 @@ private[spark] object Conversions {
 
 private[spark] object SqlMetadataKeys {
   val MetadataType = "x-ecs-md-type"
+  val MetadataName = "x-ecs-md-name"
 }
 
 private[spark] object QueryGenerator {
@@ -50,19 +52,20 @@ private[spark] object QueryGenerator {
     * See [[org.apache.spark.sql.sources.PrunedFilteredScan]] for detailed explanation.
     *
     * @param filters the set of conjunctive filters ("and")
+    * @param names a map of Spark SQL field names to object metadata names (e.g. 'image-width' -> 'x-amz-meta-image-width')
     * @return an S3-compatible query expression
     */
-  def toExpression(filters: Array[Filter]): String = {
+  def toExpression(filters: Array[Filter], names: Map[String,String]): String = {
 
     val sb = new StringBuilder
 
     filters.map { filter => filter match {
-      case EqualTo(attribute, value) => Some(Condition(attribute, EQ, value))
+      case EqualTo(attribute, value) => Some(Condition(names(attribute), EQ, value))
       case EqualNullSafe(attribute, value) => None
-      case GreaterThan(attribute, value) => Some(Condition(attribute, GT, value))
-      case GreaterThanOrEqual(attribute, value) => Some(Condition(attribute, GTE, value))
-      case LessThan(attribute, value) => Some(Condition(attribute, LT, value))
-      case LessThanOrEqual(attribute, value) => Some(Condition(attribute, LTE, value))
+      case GreaterThan(attribute, value) => Some(Condition(names(attribute), GT, value))
+      case GreaterThanOrEqual(attribute, value) => Some(Condition(names(attribute), GTE, value))
+      case LessThan(attribute, value) => Some(Condition(names(attribute), LT, value))
+      case LessThanOrEqual(attribute, value) => Some(Condition(names(attribute), LTE, value))
       case In(attribute, values) => None
       case IsNull(attribute) => None
       case IsNotNull(attribute) => None

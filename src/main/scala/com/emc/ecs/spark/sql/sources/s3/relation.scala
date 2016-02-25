@@ -32,8 +32,8 @@ private class BucketMetadataRelation(
   lazy val metadataKeys = s3Client.listBucketMetadataSearchKeys(bucketName)
 
   override def schema: StructType = {
-    val sysmd = new MetadataBuilder().putString(SqlMetadataKeys.MetadataType, SYSMD.toString).build()
-    val usermd = new MetadataBuilder().putString(SqlMetadataKeys.MetadataType, USERMD.toString).build()
+    val sysmd = new MetadataBuilder().putString(SqlMetadataKeys.MetadataType, SYSMD.toString)
+    val usermd = new MetadataBuilder().putString(SqlMetadataKeys.MetadataType, USERMD.toString)
 
     StructType(
       Option(metadataKeys.getIndexableKeys).map(_.map(_.toStructField(usermd)).toList).getOrElse(Nil) ++
@@ -41,7 +41,7 @@ private class BucketMetadataRelation(
         Option(sysKeys.getIndexableKeys).map(_.map(_.toStructField(sysmd))).getOrElse(Nil) ++
         Option(sysKeys.getOptionalAttributes).map(_.map(_.toStructField(sysmd))).getOrElse(Nil)
       else Nil) ++
-      Seq(StructField("Key", StringType, nullable = false, sysmd)) ++
+      Seq(StructField("Key", StringType, nullable = false, sysmd.putString(SqlMetadataKeys.MetadataName, "ObjectName").build())) ++
       Nil
     )
   }
@@ -49,7 +49,9 @@ private class BucketMetadataRelation(
   def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     val sc = sqlContext.sparkContext
 
-    val expression = QueryGenerator.toExpression(filters) match {
+    val col2meta = schema.fields.map(f => f.name -> f.metadata.getString(SqlMetadataKeys.MetadataName)).toMap
+
+    val expression = QueryGenerator.toExpression(filters, col2meta) match {
       case "" => throw new UnsupportedOperationException("Unsupported metadata search query.")
       case s => s
     }
@@ -77,7 +79,7 @@ private class BucketMetadataRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
 
-    log.debug(s"computing partition [${split.index}] with query [${query}]")
+    log.info(s"computing partition [${split.index}] with query [${query}]")
 
     def paged(request: QueryObjectsRequest): Iterator[Seq[BucketQueryObject]] = {
       new Iterator[Seq[BucketQueryObject]] {
@@ -118,6 +120,9 @@ private class BucketMetadataRDD(
     * An array of column value generators, ordered according to `requiredColumns`.
     */
   private lazy val cols: Array[ObjectData => Any] = {
+
+    val col2meta = schema.fields.map(f => f.name -> f.metadata.getString(SqlMetadataKeys.MetadataName)).toMap
+
     requiredColumns.map(schema(_)).map { field =>
       val mdtype = MetadataType.valueOf(field.metadata.getString(SqlMetadataKeys.MetadataType))
 
@@ -125,10 +130,10 @@ private class BucketMetadataRDD(
         case ("Key", MetadataType.SYSMD, StringType) => (o: ObjectData) => o.key
         case ("LastModified", MetadataType.SYSMD, TimestampType) => (o: ObjectData) => o.sysmd.get("mtime").map(_.toLong).map(new Timestamp(_)).orElse(null)
         case (name, MetadataType.SYSMD, _) => (o: ObjectData) => null
-        case (name, MetadataType.USERMD, StringType) => (o: ObjectData) => o.usermd.getOrElse(name, null)
-        case (name, MetadataType.USERMD, IntegerType) => (o: ObjectData) => o.usermd.get(name).map(_.toInt).orElse(null)
-        case (name, MetadataType.USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(name).map(Instant.parse).orElse(null)
-        case (name, MetadataType.USERMD, DoubleType) => (o: ObjectData) => o.usermd.get(name).map(_.toDouble).orElse(null)
+        case (name, MetadataType.USERMD, StringType) => (o: ObjectData) => o.usermd.getOrElse(col2meta(name), null)
+        case (name, MetadataType.USERMD, IntegerType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(_.toInt).orElse(null)
+        case (name, MetadataType.USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(Instant.parse).orElse(null)
+        case (name, MetadataType.USERMD, DoubleType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(_.toDouble).orElse(null)
         case (_, MetadataType.USERMD, dt) => sys.error(s"unsupported dataType [$dt]")
       }
     }

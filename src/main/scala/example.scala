@@ -8,7 +8,9 @@ object Example extends App {
   val endpointUri = new URI(args(0))
   val credential = (args(1), args(2))
 
-  val sparkConf = new SparkConf().setAppName("spark-object")
+  val sparkConf = new SparkConf()
+    .setAppName("spark-object")
+    .setMaster("local[*]")
   val sc = new SparkContext(sparkConf)
   val sqlContext = new SQLContext(sc)
 
@@ -18,13 +20,13 @@ object Example extends App {
   sqlContext.sql(
     """
       |SELECT * FROM ben_bucket
-      |WHERE `x-amz-meta-image-viewcount` >= 5000 AND `x-amz-meta-image-viewcount` <= 5500
+      |WHERE `image-viewcount` >= 5000 AND `image-viewcount` <= 5500
     """.stripMargin).show(100)
 
   println(sqlContext.sql(
     """
       |SELECT * FROM ben_bucket
-      |WHERE `x-amz-meta-image-width` > 0
+      |WHERE `image-width` > 0
     """.stripMargin).count)
 
 }
