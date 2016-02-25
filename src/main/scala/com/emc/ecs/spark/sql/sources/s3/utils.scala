@@ -2,7 +2,7 @@ package com.emc.ecs.spark.sql.sources.s3
 
 import java.net.URI
 import java.sql.Timestamp
-
+import org.joda.time.Instant
 import com.emc.`object`.s3.S3Config
 import com.emc.`object`.s3.bean.{MetadataSearchDatatype, MetadataSearchKey}
 import com.emc.`object`.s3.jersey.S3JerseyClient
@@ -88,7 +88,7 @@ private[spark] object QueryGenerator {
     def format(argument: Any): String = argument match {
       case s:String => s"'$s'"
       case i:Number => i.toString
-      case t:Timestamp => t.toInstant.toString
+      case t:Timestamp => new Instant(t.getTime).toString
       case a:Any => s"'$a'"
     }
   }

@@ -2,7 +2,7 @@ package com.emc.ecs.spark.sql.sources.s3
 
 import java.net.URI
 import java.sql.Timestamp
-import java.time.Instant
+import org.joda.time.Instant
 
 import com.emc.`object`.s3.bean._
 import com.emc.`object`.s3.request.QueryObjectsRequest
