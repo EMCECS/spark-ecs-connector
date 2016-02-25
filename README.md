@@ -9,6 +9,12 @@ Spark SQL supports querying external data sources and rendering the results as a
 ![Screenshot](screenshot.png)
 
 # Using
+## Quickstart
+Run the below then open your browser to `<host>:8080`.
+```
+docker run -itd --name zeppelin -p 8080:8080 emccorp/spark-ecs-s3:latest
+```
+
 ## Prerequisites
 1. Install sbt.
 2. Build the `feature-bucket-metadata` branch of the `ecs-object-client` repository
