@@ -43,11 +43,11 @@ df.registerTempTable("ben_bucket")
 ```
 %sql
 SELECT * FROM ben_bucket 
-WHERE `x-amz-meta-image-viewcount` >= 5000 AND `x-amz-meta-image-viewcount` <= 10000
+WHERE `image-viewcount` >= 5000 AND `image-viewcount` <= 10000
 ```
 
 ## TODO
 1. Implement column pruning.  I believe the `queryObjects` call accepts a list of attributes to return, rather than returning all.
 2. Implement 'OR' pushdown.  ECS supports 'or', but not in combination with 'and'.
 3. Support system metadata.    Partial support is there to query and display system metadata, but the reader logic in `BucketMetadataRDD.cols` is incomplete.
-4. Shorten the column names to not contain `x-amz-meta-`.  I suggest storing the original S3 metadata name in Spark column metadata to be able to correctly process the filters.
+
