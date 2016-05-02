@@ -5,6 +5,10 @@ import org.apache.spark.{SparkConf, SparkContext}
 import com.emc.ecs.spark.sql.sources.s3._
 
 object Example extends App {
+  if(args.length != 3) {
+    println("usage: Example [http://endpoint:9020] [userName] [secretKey]")
+    sys.exit()
+  }
   val endpointUri = new URI(args(0))
   val credential = (args(1), args(2))
 
@@ -20,7 +24,7 @@ object Example extends App {
   sqlContext.sql(
     """
       |SELECT * FROM ben_bucket
-      |WHERE `image-viewcount` >= 5000 AND `image-viewcount` <= 5500
+      |WHERE `image-viewcount` >= 5000 AND `image-viewcount` <= 10000
     """.stripMargin).show(100)
 
   println(sqlContext.sql(
