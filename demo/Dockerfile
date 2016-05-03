@@ -13,8 +13,8 @@ RUN \
 ENV ZEPPELIN_HOME /opt/zeppelin-0.5.6-incubating-bin-all
 
 WORKDIR /root
-RUN git clone https://github.com/emcvipr/spark-ecs-s3.git \
-  && cd spark-ecs-s3
+RUN git clone http://github.com/emcvipr/spark-ecs-s3.git \
+  && cd spark-ecs-s3 \
   && sbt publishM2
   
 EXPOSE 8080
