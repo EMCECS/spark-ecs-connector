@@ -11,8 +11,12 @@ RUN \
   | tar x -C /opt/
 
 ENV ZEPPELIN_HOME /opt/zeppelin-0.5.6-incubating-bin-all
-ADD m2.tar.gz /root/
 
+WORKDIR /root
+RUN git clone https://github.com/emcvipr/spark-ecs-s3.git \
+  && cd spark-ecs-s3
+  && sbt publishM2
+  
 EXPOSE 8080
 
 ENV SPARK_LOCAL_IP 127.0.0.1
