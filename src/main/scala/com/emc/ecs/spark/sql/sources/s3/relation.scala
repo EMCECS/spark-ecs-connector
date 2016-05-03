@@ -38,7 +38,7 @@ private class BucketMetadataRelation(
     StructType(
       Option(metadataKeys.getIndexableKeys).map(_.map(_.toStructField(usermd)).toList).getOrElse(Nil) ++
       (if(withSystemMetadata)
-        Option(sysKeys.getIndexableKeys).map(_.map(_.toStructField(sysmd))).getOrElse(Nil) ++
+        Option(sysKeys.getIndexableKeys).map(_.filterNot(_.getName == "ObjectName").map(_.toStructField(sysmd))).getOrElse(Nil) ++
         Option(sysKeys.getOptionalAttributes).map(_.map(_.toStructField(sysmd))).getOrElse(Nil)
       else Nil) ++
       Seq(StructField("Key", StringType, nullable = false, sysmd.putString(SqlMetadataKeys.MetadataName, "ObjectName").build())) ++
@@ -95,9 +95,15 @@ private class BucketMetadataRDD(
       }
     }
 
+    // apply projection (obtain requiredColumns only)
+    val projectedAttributes: Seq[String] =
+      requiredColumns.map(schema(_))
+      .filter(_.metadata.getString(SqlMetadataKeys.MetadataType) == SYSMD.toString)
+      .map(_.metadata.getString(SqlMetadataKeys.MetadataName))
+
     val request = new QueryObjectsRequest(bucketName)
       .withQuery(query)
-      .withAttribute("LastModified") // hack: hardcoded attribute for demonstration purposes
+      .withAttributes(projectedAttributes)
 
     paged(request).flatMap(result => result.getObjects.map(convertToRow))
   }
@@ -128,16 +134,35 @@ private class BucketMetadataRDD(
 
       (field.name, mdtype, field.dataType) match {
         case ("Key", SYSMD, StringType) => (o: ObjectData) => o.key
-        case ("LastModified", SYSMD, TimestampType) => (o: ObjectData) => o.sysmd.get("mtime").map(_.toLong).map(new Timestamp(_)).orElse(null)
-        case (name, SYSMD, _) => (o: ObjectData) => null
+
+        case (name, SYSMD, StringType) => (o: ObjectData) => o.sysmd.getOrElse(sysmd2result(name), null)
+        case (name, SYSMD, IntegerType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toInt).orElse(null)
+        case (name, SYSMD, TimestampType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toLong).map(new Timestamp(_)).orElse(null)
+        case (name, SYSMD, DoubleType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toDouble).orElse(null)
         case (name, USERMD, StringType) => (o: ObjectData) => o.usermd.getOrElse(col2meta(name), null)
-        case (name, USERMD, IntegerType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(_.toInt).orElse(null)
-        case (name, USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(Instant.parse).orElse(null)
-        case (name, USERMD, DoubleType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(_.toDouble).orElse(null)
-        case (_, USERMD, dt) => sys.error(s"unsupported dataType [$dt]")
+        case (name, USERMD, IntegerType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(_.toInt).orElse(null)
+        case (name, USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(Instant.parse).orElse(null)
+        case (name, USERMD, DoubleType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(_.toDouble).orElse(null)
+        case (_, _, dt) => sys.error(s"unsupported dataType [$dt]")
       }
     }
   }
+
+  /**
+    * A map of system metadata attribute names to the actual keys in the query result object
+    */
+  private val sysmd2result: Map[String,String] = Seq(
+    "LastModified" -> "mtime",
+    "CreateTime" -> "createtime",
+    "Owner" -> "owner",
+    "Size" -> "size",
+    "ObjectName" -> "object-name",
+    "ContentType" -> "ctype",
+    "Expiration" -> "expiration",
+    "ContentEncoding" -> "encoding",
+    "Expires" -> "Expires",
+    "Retention" -> "retention"
+  ).toMap.withDefaultValue(null)
 }
 
 class DefaultSource extends RelationProvider {
