@@ -2,7 +2,6 @@ package com.emc.ecs.spark.sql.sources.s3
 
 import java.net.URI
 import java.sql.Timestamp
-import com.emc.`object`.s3.bean.MetadataType._
 import org.joda.time.Instant
 import com.emc.`object`.s3.S3Config
 import com.emc.`object`.s3.bean.{MetadataSearchDatatype, MetadataSearchKey}
@@ -27,10 +26,10 @@ private[spark] object Conversions {
           case name: String => name
         },
         dataType = key.getDatatype match {
-          case MetadataSearchDatatype.String => StringType
-          case MetadataSearchDatatype.Integer => IntegerType
-          case MetadataSearchDatatype.Datetime => TimestampType
-          case MetadataSearchDatatype.Decimal => DoubleType
+          case MetadataSearchDatatype.string => StringType
+          case MetadataSearchDatatype.integer => IntegerType
+          case MetadataSearchDatatype.datetime => TimestampType
+          case MetadataSearchDatatype.decimal => DoubleType
           case _ => sys.error(s"unsupported datatype: ${key.getDatatype}")
         },
         nullable = true,

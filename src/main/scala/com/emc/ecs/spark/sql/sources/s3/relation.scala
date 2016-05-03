@@ -13,6 +13,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.collection.JavaConversions._
+import QueryMetadataType._
 
 /**
   * Bucket metadata as a Spark SQL relation.
@@ -26,7 +27,6 @@ private class BucketMetadataRelation(
   extends BaseRelation with PrunedFilteredScan with HasClient with Logging  {
 
   import Conversions._
-  import MetadataType._
 
   lazy val sysKeys = s3Client.listSystemMetadataSearchKeys()
   lazy val metadataKeys = s3Client.listBucketMetadataSearchKeys(bucketName)
@@ -38,7 +38,7 @@ private class BucketMetadataRelation(
     StructType(
       Option(metadataKeys.getIndexableKeys).map(_.map(_.toStructField(usermd)).toList).getOrElse(Nil) ++
       (if(withSystemMetadata)
-        Option(sysKeys.getIndexableKeys).map(_.map(_.toStructField(sysmd))).getOrElse(Nil) ++
+        Option(sysKeys.getIndexableKeys).map(_.filterNot(_.getName == "ObjectName").map(_.toStructField(sysmd))).getOrElse(Nil) ++
         Option(sysKeys.getOptionalAttributes).map(_.map(_.toStructField(sysmd))).getOrElse(Nil)
       else Nil) ++
       Seq(StructField("Key", StringType, nullable = false, sysmd.putString(SqlMetadataKeys.MetadataName, "ObjectName").build())) ++
@@ -81,25 +81,31 @@ private class BucketMetadataRDD(
 
     log.info(s"computing partition [${split.index}] with query [${query}]")
 
-    def paged(request: QueryObjectsRequest): Iterator[Seq[BucketQueryObject]] = {
-      new Iterator[Seq[BucketQueryObject]] {
+    def paged(request: QueryObjectsRequest): Iterator[QueryObjectsResult] = {
+      new Iterator[QueryObjectsResult] {
         var current: Option[QueryObjectsResult] = None
         override def hasNext: Boolean = current.map(_.isTruncated).getOrElse(true)
-        override def next(): Seq[BucketQueryObject] = {
+        override def next(): QueryObjectsResult = {
           current match {
             case None => current = Some(s3Client.queryObjects(request))
             case Some(_) => current = Some(s3Client.queryMoreObjects(current.get))
           }
-          current.get.getObjects
+          current.get
         }
       }
     }
 
+    // apply projection (obtain requiredColumns only)
+    val projectedAttributes: Seq[String] =
+      requiredColumns.map(schema(_))
+      .filter(_.metadata.getString(SqlMetadataKeys.MetadataType) == SYSMD.toString)
+      .map(_.metadata.getString(SqlMetadataKeys.MetadataName))
+
     val request = new QueryObjectsRequest(bucketName)
       .withQuery(query)
-      .withAttribute("LastModified") // hack: hardcoded attribute for demonstration purposes
+      .withAttributes(projectedAttributes)
 
-    paged(request).flatMap(result => result.map(convertToRow))
+    paged(request).flatMap(result => result.getObjects.map(convertToRow))
   }
 
   case class ObjectData(key: String, usermd: Map[String,String], sysmd: Map[String,String])
@@ -107,11 +113,11 @@ private class BucketMetadataRDD(
   /**
     * Convert the given object metadata to a Spark SQL row object.
     */
-  private def convertToRow(obj: BucketQueryObject): Row = {
+  private def convertToRow(obj: QueryObject): Row = {
     val data = ObjectData(
       obj.getObjectName,
-      obj.getQueryMds.find(_.getType == MetadataType.USERMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty),
-      obj.getQueryMds.find(_.getType == MetadataType.SYSMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty))
+      obj.getQueryMds.find(_.getType == USERMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty),
+      obj.getQueryMds.find(_.getType == SYSMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty))
 
     Row.fromSeq(cols.map(_.apply(data)))
   }
@@ -124,20 +130,39 @@ private class BucketMetadataRDD(
     val col2meta = schema.fields.map(f => f.name -> f.metadata.getString(SqlMetadataKeys.MetadataName)).toMap
 
     requiredColumns.map(schema(_)).map { field =>
-      val mdtype = MetadataType.valueOf(field.metadata.getString(SqlMetadataKeys.MetadataType))
+      val mdtype = QueryMetadataType.valueOf(field.metadata.getString(SqlMetadataKeys.MetadataType))
 
       (field.name, mdtype, field.dataType) match {
-        case ("Key", MetadataType.SYSMD, StringType) => (o: ObjectData) => o.key
-        case ("LastModified", MetadataType.SYSMD, TimestampType) => (o: ObjectData) => o.sysmd.get("mtime").map(_.toLong).map(new Timestamp(_)).orElse(null)
-        case (name, MetadataType.SYSMD, _) => (o: ObjectData) => null
-        case (name, MetadataType.USERMD, StringType) => (o: ObjectData) => o.usermd.getOrElse(col2meta(name), null)
-        case (name, MetadataType.USERMD, IntegerType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(_.toInt).orElse(null)
-        case (name, MetadataType.USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(Instant.parse).orElse(null)
-        case (name, MetadataType.USERMD, DoubleType) => (o: ObjectData) => o.usermd.get(col2meta(name)).map(_.toDouble).orElse(null)
-        case (_, MetadataType.USERMD, dt) => sys.error(s"unsupported dataType [$dt]")
+        case ("Key", SYSMD, StringType) => (o: ObjectData) => o.key
+
+        case (name, SYSMD, StringType) => (o: ObjectData) => o.sysmd.getOrElse(sysmd2result(name), null)
+        case (name, SYSMD, IntegerType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toInt).orElse(null)
+        case (name, SYSMD, TimestampType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toLong).map(new Timestamp(_)).orElse(null)
+        case (name, SYSMD, DoubleType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toDouble).orElse(null)
+        case (name, USERMD, StringType) => (o: ObjectData) => o.usermd.getOrElse(col2meta(name), null)
+        case (name, USERMD, IntegerType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(_.toInt).orElse(null)
+        case (name, USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(Instant.parse).orElse(null)
+        case (name, USERMD, DoubleType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(_.toDouble).orElse(null)
+        case (_, _, dt) => sys.error(s"unsupported dataType [$dt]")
       }
     }
   }
+
+  /**
+    * A map of system metadata attribute names to the actual keys in the query result object
+    */
+  private val sysmd2result: Map[String,String] = Seq(
+    "LastModified" -> "mtime",
+    "CreateTime" -> "createtime",
+    "Owner" -> "owner",
+    "Size" -> "size",
+    "ObjectName" -> "object-name",
+    "ContentType" -> "ctype",
+    "Expiration" -> "expiration",
+    "ContentEncoding" -> "encoding",
+    "Expires" -> "Expires",
+    "Retention" -> "retention"
+  ).toMap.withDefaultValue(null)
 }
 
 class DefaultSource extends RelationProvider {
