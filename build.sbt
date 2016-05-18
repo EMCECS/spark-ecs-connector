@@ -1,6 +1,6 @@
 name := "spark-ecs-s3"
 organization := "com.emc.ecs"
-version := "1.0"
+version := "1.1-SNAPSHOT"
 
 scalaVersion := "2.10.5"
 sparkVersion := "1.6.0"
