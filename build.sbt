@@ -21,3 +21,29 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.2",
   "org.scalatest" %% "scalatest" % "2.2.5" % Test
 )
+
+publishMavenStyle := true
+
+publishTo := {
+  val nexus = "https://oss.sonatype.org"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+}
+
+licenses := Seq("BSD-3-Clause" -> url("https://opensource.org/licenses/BSD-3-Clause"))
+
+homepage := Some(url("https://github.com/emcvipr/spark-ecs-s3"))
+
+pomExtra := (
+  <scm>
+    <url>https://github.com/emcvipr/spark-ecs-s3</url>
+    <connection>scm:git@github.com:emcvipr/spark-ecs-s3.git</connection>
+  </scm>
+  <developers>
+    <developer>
+      <id>emcvipr</id>
+      <name>EMC ViPR</name>
+    </developer>
+  </developers>)
