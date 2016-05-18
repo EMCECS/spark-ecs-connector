@@ -32,6 +32,8 @@ publishTo := {
     Some("releases" at nexus + "service/local/staging/deploy/maven2")
 }
 
+pomIncludeRepository := { _ => false }
+
 licenses := Seq("BSD-3-Clause" -> url("https://opensource.org/licenses/BSD-3-Clause"))
 
 homepage := Some(url("https://github.com/emcvipr/spark-ecs-s3"))
