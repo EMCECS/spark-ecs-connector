@@ -29,11 +29,11 @@ object Example extends App {
 
   print("JMC going to read bucket to get the metadata fields")
 
-  //val df = sqlContext.read.bucket(endpointUri, credential, argbucket, withSystemMetadata = false, withObjectContent = true)
-  val df = sqlContext.read.bucket(endpointUri, credential, argbucket, withSystemMetadata = false)
+  val df = sqlContext.read.bucket(endpointUri, credential, argbucket, withSystemMetadata = false, withObjectContent = true)
+  //val df = sqlContext.read.bucket(endpointUri, credential, argbucket, withSystemMetadata = false)
   df.registerTempTable(argbucket)
 
-  print("JMC created the registered the temp table. Now going to run sql statement\n")
+  print("JMC2 created the registered the temp table. Now going to run sql statement\n")
   //sqlContext.sql(sqlStr.format(argbucket).stripMargin)
   val theData = sqlContext.sql(sqlStr)
   theData.foreach(println)

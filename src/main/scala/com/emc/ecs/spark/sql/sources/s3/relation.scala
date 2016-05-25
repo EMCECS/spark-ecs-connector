@@ -22,7 +22,8 @@ private class BucketMetadataRelation(
     override val credential: (String,String),
     override val endpointUri: URI,
     val bucketName: String,
-    val withSystemMetadata: Boolean)
+    val withSystemMetadata: Boolean,
+    val withObjectContent: Boolean = false)
     (@transient override val sqlContext: SQLContext)
   extends BaseRelation with PrunedFilteredScan with HasClient with Logging  {
 
@@ -176,8 +177,9 @@ class DefaultSource extends RelationProvider {
 
     val bucketName = parameters.getOrElse(BucketName, sys.error(s"'$BucketName' must be specified"))
     val withSystemMetadata = parameters.get(WithSystemMetadata).map(_.toBoolean).getOrElse(false)
-
-    new BucketMetadataRelation((identity, secretKey), endpointUri, bucketName, withSystemMetadata)(sqlContext)
+    val withObjectContent = parameters.get(WithObjectContent).map(_.toBoolean).getOrElse(false)
+    
+    new BucketMetadataRelation((identity, secretKey), endpointUri, bucketName, withSystemMetadata, withObjectContent)(sqlContext)
   }
 }
 
@@ -187,5 +189,6 @@ object DefaultSource {
   val Endpoint = "endpoint"
   val Identity = "identity"
   val SecretKey = "secretKey"
+  val WithObjectContent = "withObjectContent"
 }
 
