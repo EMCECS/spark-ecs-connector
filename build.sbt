@@ -3,7 +3,7 @@ organization := "com.emc.ecs"
 version := "1.1-SNAPSHOT"
 
 scalaVersion := "2.10.5"
-sparkVersion := "1.6.0"
+sparkVersion := "1.6.1"
 
 resolvers ++= Seq(
   Resolver.mavenLocal,
