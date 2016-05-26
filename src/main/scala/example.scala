@@ -1,5 +1,7 @@
 import java.net.URI
 
+import com.emc.ecs.spark.sql.sources.s3content.{ObjectContentRDD, S3ClientWalletImpl}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkConf, SparkContext}
 import com.emc.ecs.spark.sql.sources.s3._
@@ -38,8 +40,21 @@ object Example extends App {
   val theData = sqlContext.sql(sqlStr)
   theData.foreach(println)
 
-
   println("JMC-------------------------------------------------------------")
   println(sqlContext.sql(sqlStr.format(argbucket).stripMargin).count)
   println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
+
+  val objectKeySeq = Seq("objectKey4")
+  val objListRDD: RDD[String] = sc.makeRDD(objectKeySeq)
+  //val s3ClientWalletImpl = new S3ClientWalletImpl(endpointUri, credential, argbucket)
+  val s3ClientWalletImpl = new S3ClientWalletImpl("http://10.1.51.83:9020", credential, argbucket)
+  //val objectContentRDD = objListRDD.map(row => {})
+  //val objectContentRDD = new ObjectContentRDD(objListRDD, s3ClientWalletImpl)
+  val objectContentRDD = new ObjectContentRDD(objListRDD, credential, endpointUri, argbucket)
+  println("JMC There are this many objects retrieved: " + objectContentRDD.count())
+  println("JMC------------------------OBJECT CONTENT------------------------------------")
+  objectContentRDD.foreach(println)
+  println("^^^^^^^^^^^^^^^^^^^^^^^^^^^OBJECT CONTENT^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
 }
