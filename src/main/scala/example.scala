@@ -5,6 +5,10 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import com.emc.ecs.spark.sql.sources.s3._
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types._
+import scala.collection.mutable.ListBuffer
+
 
 object Example extends App {
   if(args.length < 4) {
@@ -39,23 +43,64 @@ object Example extends App {
   //sqlContext.sql(sqlStr.format(argbucket).stripMargin)
   val theData = sqlContext.sql(sqlStr)
   theData.foreach(println)
-
   println("JMC-------------------------------------------------------------")
   println(sqlContext.sql(sqlStr.format(argbucket).stripMargin).count)
   println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 
-  val objectKeySeq = Seq("objectKey4", "objectKey")
-  val objectKeyRow = Row.fromSeq(objectKeySeq)
-  //val objListRDD: RDD[String] = sc.makeRDD(objectKeySeq)
-  val objListRDD: RDD[Any] = sc.makeRDD(objectKeySeq)
 
+
+
+
+  /////////////////////////////////////////////////////////////////////////
+  // doing this, in an attempt at getting all the values from the "Key" column
+  // seemed to cause the custom query functions to be called
+  //val sz = df.map{row=>row.getAs("Key")}
+  //val x = df.select("Key").collect()
+  //theData.foreach(f:Row=>fruits+=f)
+
+  //not sure what this will give me yet...
+  //var fruits = new ListBuffer[Row]()
+  //for(r<-theData)fruits+=_
+
+  //this isn't really right because theData is just an array of arrays
+  //there isn't any column name info like an array of dicts in python or
+  //possibly the dataframe, which seems to trigger the custom query
+  //val sz = theData.map{row=>row.getAs("Key")}
+  //println("Here is just the 'Key' column value: " + sz)
+
+  val keyDf = theData.toDF()
+  val sz = keyDf.map{row=>row.getAs[Any]("Key")} //return RDD[R]
+  //val sz2 = keyDf.select("Key").collect() //returns Array[Row]
+
+  //val objectKeySeq = Seq("objectKey4", "objectKey")
+  //val objListRDD: RDD[Any] = sc.makeRDD(objectKeySeq)
   val s3ClientWalletImpl = new S3ClientWalletImpl("http://10.1.51.83:9020", credential, argbucket)
-
-  val objectContentRDD = new ObjectContentRDD(objListRDD, credential, endpointUri, argbucket)
+  //val objectContentRDD = new ObjectContentRDD(objListRDD, credential, endpointUri, argbucket)
+  val objectContentRDD = new ObjectContentRDD(sz, credential, endpointUri, argbucket)
   println("JMC There are this many objects retrieved: " + objectContentRDD.count())
   println("JMC------------------------OBJECT CONTENT------------------------------------")
   objectContentRDD.foreach(println)
   println("^^^^^^^^^^^^^^^^^^^^^^^^^^^OBJECT CONTENT^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
+
+  val dfSchema = StructType(Seq(StructField("Key", StringType, false),StructField("ObjectContent", StringType, true)))
+  /*
+  case class ObjectContentCase(key:String, content:String)
+  val contentdf = objectContentRDD.map{
+    case Row(val1:String, val2:String) => ObjectContentCase(key = val1, content=val2)
+  }
+  */
+
+
+
+  val contentRDDRows = objectContentRDD.map{
+    case Row(val1:String, val2:String) => Row(val1, val2)
+  }
+  val contentDf = sqlContext.createDataFrame(contentRDDRows, dfSchema)
+  val joinedDf = contentDf.join(keyDf, "Key")
+  println("JMC------------------------JOINED OBJECT CONTENT------------------------------------")
+  joinedDf.foreach(println)
+  println("^^^^^^^^^^^^^^^^^^^^^^^^^^^JOINED OBJECT CONTENT^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 }
