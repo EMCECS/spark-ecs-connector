@@ -2,9 +2,9 @@ import java.net.URI
 
 import com.emc.ecs.spark.sql.sources.s3content.{ObjectContentRDD, S3ClientWalletImpl}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkConf, SparkContext}
 import com.emc.ecs.spark.sql.sources.s3._
+import org.apache.spark.sql.{Row, SQLContext}
 
 object Example extends App {
   if(args.length < 4) {
@@ -45,12 +45,13 @@ object Example extends App {
   println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 
-  val objectKeySeq = Seq("objectKey4")
-  val objListRDD: RDD[String] = sc.makeRDD(objectKeySeq)
-  //val s3ClientWalletImpl = new S3ClientWalletImpl(endpointUri, credential, argbucket)
+  val objectKeySeq = Seq("objectKey4", "objectKey")
+  val objectKeyRow = Row.fromSeq(objectKeySeq)
+  //val objListRDD: RDD[String] = sc.makeRDD(objectKeySeq)
+  val objListRDD: RDD[Any] = sc.makeRDD(objectKeySeq)
+
   val s3ClientWalletImpl = new S3ClientWalletImpl("http://10.1.51.83:9020", credential, argbucket)
-  //val objectContentRDD = objListRDD.map(row => {})
-  //val objectContentRDD = new ObjectContentRDD(objListRDD, s3ClientWalletImpl)
+
   val objectContentRDD = new ObjectContentRDD(objListRDD, credential, endpointUri, argbucket)
   println("JMC There are this many objects retrieved: " + objectContentRDD.count())
   println("JMC------------------------OBJECT CONTENT------------------------------------")

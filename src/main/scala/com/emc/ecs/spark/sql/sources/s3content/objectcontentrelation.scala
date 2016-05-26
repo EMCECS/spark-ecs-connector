@@ -54,22 +54,22 @@ class S3ClientWalletImpl (endpt: String, cred: (String, String), bn: String){
 
 
 
-class ObjectContentRDD(prev:RDD[String], val credential: (String,String),
+class ObjectContentRDD(prev:RDD[Any], val credential: (String,String),
                        val endpointUri: URI,
                        val bucketName: String)
-  extends RDD[String](prev)  with S3ClientWallet with Logging {
+  extends RDD[Any](prev)  with S3ClientWallet with Logging {
 
   override def getPartitions: Array[Partition] = firstParent[String].partitions
 
   override def compute(split: Partition, context: TaskContext):
-  Iterator[String] = {
+  Iterator[Any] = {
     firstParent[String].iterator(split, context).map(objKey => {
       log.info(s"Getting object content for: " + objKey)
       var gor = new GetObjectRequest(bucketName, objKey)
       val getObjResponse: GetObjectResult[String] = s3Client.getObject(gor,classOf[String])
       log.info(s"Got object content for: " + objKey)
       log.info(s"Content: " + getObjResponse.getObject())
-      getObjResponse.getObject()
+      Row.fromSeq(Seq(objKey, getObjResponse.getObject()))
     })
   }
 
