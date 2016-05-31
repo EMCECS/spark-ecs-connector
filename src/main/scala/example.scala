@@ -102,5 +102,4 @@ object Example extends App {
   println("JMC------------------------JOINED OBJECT CONTENT------------------------------------")
   joinedDf.foreach(println)
   println("^^^^^^^^^^^^^^^^^^^^^^^^^^^JOINED OBJECT CONTENT^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-
 }
