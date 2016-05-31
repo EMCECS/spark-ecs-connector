@@ -21,9 +21,7 @@ package object s3content {
     val sz = keyDf.map{row=>row.getAs[Any]("Key")} //return RDD[R]
     val endpointStr = endpointUri.toString()
 
-    val s3ClientWalletImpl = new S3ClientWalletImpl(endpointStr, credential, bucketName)
-
-    val objectContentRDD = new ObjectContentRDD(sz, credential, endpointUri, bucketName)
+    val objectContentRDD = new ObjectContentRDD(sz, endpointStr, credential, bucketName)
 
     /*
     println("JMC There are this many objects retrieved: " + objectContentRDD.count())

@@ -30,42 +30,18 @@ import scala.collection.mutable.ListBuffer
 
 
 trait S3ClientWallet {
-  def endpointUri: URI
+  def endpt: String
   def credential: (String, String)
   def bucketName: String
 
+  var endpointUri: URI = new URI(endpt)
   protected[this] lazy val s3Config = new S3Config(endpointUri)
     .withUseVHost(false)
     .withIdentity(credential._1).withSecretKey(credential._2)
   protected[this] lazy val s3Client = new S3JerseyClient(s3Config, new URLConnectionClientHandler())
 }
 
-class S3ClientWalletTraitor (val credential: (String,String),
-                             val endpointUri: URI,
-                             val bucketName: String) extends S3ClientWallet{
-
-}
-
-class S3ClientWalletImpl (endpt: String, cred: (String, String), bn: String){
-  def endpointUri: URI = {URI.create(endpt)}
-  def credential: (String, String) = cred
-  def bucketName: String = bn
-
-  def  s3Config: S3Config = { new S3Config(URI.create(endpt))
-    .withUseVHost(false).withIdentity(cred._1)
-    .withSecretKey(cred._2)}
-
-    //protected[this] lazy val s3Client = new S3JerseyClient(s3Config, new URLConnectionClientHandler())
-  var s3Client = new S3JerseyClient(s3Config, new URLConnectionClientHandler())
-
-}
-
-
-
-
-class ObjectContentRDD(prev:RDD[Any], val credential: (String,String),
-                       val endpointUri: URI,
-                       val bucketName: String)
+class ObjectContentRDD(prev:RDD[Any], var endpt: String, var credential: (String, String), var bucketName: String)
   extends RDD[Any](prev)  with S3ClientWallet with Logging {
 
   override def getPartitions: Array[Partition] = firstParent[String].partitions
