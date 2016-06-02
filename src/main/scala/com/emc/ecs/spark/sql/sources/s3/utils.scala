@@ -47,12 +47,6 @@ private[spark] object SqlMetadataKeys {
   val Indexable = "x-ecs-md-indexable"
 }
 
-private[spark] object ColumnDataSource {
-  val USERMD = "DD"
-  val SYSMD = "SS"
-  val CONTENT = "C"
-}
-
 private[spark] object WellKnownSysmd {
   val ObjectName = "ObjectName"
   val ObjectContent = "ObjectContent"
