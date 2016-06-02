@@ -19,7 +19,9 @@ private[spark] object Conversions {
   private val userMetadataPrefix = """x-amz-meta-(.*)""".r
 
   implicit class MetadataSearchKeyConversions(key: MetadataSearchKey) {
-    def toStructField(metadata: MetadataBuilder): StructField = {
+    def toStructField(metadata: MetadataBuilder, indexable: Boolean): StructField = {
+      import SqlMetadataKeys._
+
       StructField(
         name = key.getName match {
           case userMetadataPrefix(name) => name
@@ -33,7 +35,7 @@ private[spark] object Conversions {
           case _ => sys.error(s"unsupported datatype: ${key.getDatatype}")
         },
         nullable = true,
-        metadata.putString(SqlMetadataKeys.MetadataName, key.getName).build()
+        metadata.putString(MetadataName, key.getName).putBoolean(Indexable, indexable).build()
       )
     }
   }
@@ -42,6 +44,18 @@ private[spark] object Conversions {
 private[spark] object SqlMetadataKeys {
   val MetadataType = "x-ecs-md-type"
   val MetadataName = "x-ecs-md-name"
+  val Indexable = "x-ecs-md-indexable"
+}
+
+private[spark] object ColumnDataSource {
+  val USERMD = "DD"
+  val SYSMD = "SS"
+  val CONTENT = "C"
+}
+
+private[spark] object WellKnownSysmd {
+  val ObjectName = "ObjectName"
+  val ObjectContent = "ObjectContent"
 }
 
 private[spark] object QueryGenerator {
@@ -59,21 +73,21 @@ private[spark] object QueryGenerator {
     val sb = new StringBuilder
 
     filters.map { filter => filter match {
-      case EqualTo(attribute, value) => Some(Condition(names(attribute), EQ, value))
-      case EqualNullSafe(attribute, value) => None
-      case GreaterThan(attribute, value) => Some(Condition(names(attribute), GT, value))
-      case GreaterThanOrEqual(attribute, value) => Some(Condition(names(attribute), GTE, value))
-      case LessThan(attribute, value) => Some(Condition(names(attribute), LT, value))
-      case LessThanOrEqual(attribute, value) => Some(Condition(names(attribute), LTE, value))
-      case In(attribute, values) => None
-      case IsNull(attribute) => None
-      case IsNotNull(attribute) => None
+      case EqualTo(attribute, value) if names.contains(attribute) => Some(Condition(names(attribute), EQ, value))
+      case EqualNullSafe(attribute, value) if names.contains(attribute) => None
+      case GreaterThan(attribute, value) if names.contains(attribute) => Some(Condition(names(attribute), GT, value))
+      case GreaterThanOrEqual(attribute, value) if names.contains(attribute) => Some(Condition(names(attribute), GTE, value))
+      case LessThan(attribute, value) if names.contains(attribute) => Some(Condition(names(attribute), LT, value))
+      case LessThanOrEqual(attribute, value) if names.contains(attribute) => Some(Condition(names(attribute), LTE, value))
+      case In(attribute, values) if names.contains(attribute) => None
+      case IsNull(attribute) if names.contains(attribute) => None
+      case IsNotNull(attribute) if names.contains(attribute) => None
       case And(left, right) => None
       case Or(left, right) => None
       case Not(child) => None
-      case StringStartsWith(attribute, value) => None
-      case StringEndsWith(attribute, value) => None
-      case StringContains(attribute, value) => None
+      case StringStartsWith(attribute, value) if names.contains(attribute) => None
+      case StringEndsWith(attribute, value) if names.contains(attribute) => None
+      case StringContains(attribute, value) if names.contains(attribute) => None
       case _ => None }
     }.foreach {
       case Some(condition) if sb.length == 0 => sb ++= condition.toString
