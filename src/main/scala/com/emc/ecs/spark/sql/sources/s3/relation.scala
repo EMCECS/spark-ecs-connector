@@ -6,7 +6,7 @@ import java.util.concurrent.Executors
 import org.joda.time.Instant
 
 import com.emc.`object`.s3.bean._
-import com.emc.`object`.s3.request.QueryObjectsRequest
+import com.emc.`object`.s3.request.{GetObjectRequest, QueryObjectsRequest}
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
@@ -20,6 +20,7 @@ import SqlMetadataKeys._
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
   * Bucket metadata as a Spark SQL relation.
@@ -61,7 +62,8 @@ private class BucketMetadataRelation(
       Seq(special("Key", ObjectName, StringType, nullable = false, indexable = true)) ++
 
       // define a field for the content
-      (if(withContent) Seq(special("Content", ObjectContent, ByteType, nullable = true, indexable = false)) else Nil) ++
+      //(if(withContent) Seq(special("Content", ObjectContent, ByteType, nullable = true, indexable = false)) else Nil) ++
+      (if(withContent) Seq(special("Content", ObjectContent, StringType, nullable = true, indexable = false)) else Nil) ++
 
       Nil
     )
@@ -134,14 +136,18 @@ private class BucketMetadataRDD(
 
     implicit val executionContext = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
     try {
-      paged(request).flatMap(readRows)
+      paged(request).flatMap(p=> readRows(p, executionContext))
     }
     finally {
+      //log.info(s"JMC finally")
       executionContext.shutdownNow()
     }
   }
 
-  case class ObjectData(key: String, usermd: Map[String,String], sysmd: Map[String,String], content: Future[Array[Byte]])
+  //case class ObjectData(key: String, usermd: Map[String,String], sysmd: Map[String,String], content: Future[Array[Byte]])
+  //case class ObjectData(key: String, usermd: Map[String,String], sysmd: Map[String,String], content: String)
+  case class ObjectData(key: String, usermd: Map[String,String], sysmd: Map[String,String], content: Future[String])
+
 
   /**
     * Convert the given query result to Spark Sql rows.
@@ -149,14 +155,15 @@ private class BucketMetadataRDD(
     * @param result a page of query results.
     * @return a sequence of rows
     */
-  private def readRows(result: QueryObjectsResult)(implicit execctx: ExecutionContext): Seq[Row] = {
-
+  private def readRows(result: QueryObjectsResult, execctx: ExecutionContext): Seq[Row] = {
+  //private def readRows(result: QueryObjectsResult): Seq[Row] = {
+    log.info(s"JMC Entered readRows")
     val objects = result.getObjects.map { obj =>
       ObjectData(
         obj.getObjectName,
         obj.getQueryMds.find(_.getType == USERMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty),
         obj.getQueryMds.find(_.getType == SYSMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty),
-        if(withContent) download(obj.getObjectName) else null)
+        if(withContent) download(obj.getObjectName, execctx) else null)
     }
 
     objects.map { data => Row.fromSeq(cols.map(_.apply(data))) }
@@ -165,12 +172,34 @@ private class BucketMetadataRDD(
   /***
     * Download the object content.
     */
-  private def download(objectName: String)(implicit execctx: ExecutionContext) : Future[Array[Byte]] = {
+  //private def download(objectName: String)(implicit execctx: ExecutionContext) : Future[Array[Byte]] = {
+  private def download(objectName: String, execctx: ExecutionContext) : Future[String] = {
     Future {
+      log.info(s"JMC Entered download")
+
+      var gor = new GetObjectRequest(bucketName, objectName)
+      val getObjResponse: GetObjectResult[String] = s3Client.getObject(gor,classOf[String])
+      getObjResponse.getObject
+
       // TODO download the data
-      Array[Byte](0,1,2,3)
+      //Array[Byte](0,1,2,3)
     }
   }
+
+  /*
+  private def download(objectName: String) : String = {
+      log.info(s"JMC Entered download")
+
+      var gor = new GetObjectRequest(bucketName, objectName)
+      val getObjResponse: GetObjectResult[String] = s3Client.getObject(gor,classOf[String])
+      val data = getObjResponse.getObject
+      log.info(s"CONTENT - " + data)
+      data
+      // TODO download the data
+      //Array[Byte](0,1,2,3)
+  }
+*/
+
 
   /**
     * An array of column value generators, ordered according to `requiredColumns`.
@@ -184,7 +213,16 @@ private class BucketMetadataRDD(
 
       (field.name, mdtype, field.dataType) match {
         case ("Key", SYSMD, StringType) => (o: ObjectData) => o.key
-        case ("Content", SYSMD, ByteType) => (o: ObjectData) => Await.result(o.content, Duration.Inf)
+        //case ("Content", SYSMD, ByteType) => (o: ObjectData) => Await.result(o.content, Duration.Inf)
+        case ("Content", SYSMD, StringType) => (o: ObjectData) => Await.result(o.content, Duration.Inf)
+
+        /*
+      case ("Content", SYSMD, StringType) => (o: ObjectData) => {
+        log.info(s"JMC matched the Content field")
+        //o.sysmd.getOrElse(sysmd2result(name), null)
+        o.content
+      }
+      */
         case (name, SYSMD, StringType) => (o: ObjectData) => o.sysmd.getOrElse(sysmd2result(name), null)
         case (name, SYSMD, IntegerType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toInt).orElse(null)
         case (name, SYSMD, TimestampType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toLong).map(new Timestamp(_)).orElse(null)
