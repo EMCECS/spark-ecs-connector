@@ -35,7 +35,7 @@ object Example extends App {
 
   print("JMC going to read bucket to get the metadata fields")
 
-  val df = sqlContext.read.bucket(endpointUri, credential, argbucket, withSystemMetadata = false, withObjectContent = true)
+  val df = sqlContext.read.bucket(endpointUri, credential, argbucket, withSystemMetadata = false, withContent = true)
   //val df = sqlContext.read.bucket(endpointUri, credential, argbucket, withSystemMetadata = false)
   df.registerTempTable(argbucket)
 
@@ -100,3 +100,4 @@ object Example extends App {
   joinedDf.foreach(println)
   println("^^^^^^^^^^^^^^^^^^^^^^^^^^^JOINED OBJECT CONTENT^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 }
+
