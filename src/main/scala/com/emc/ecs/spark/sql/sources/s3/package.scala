@@ -18,14 +18,15 @@ package object s3 {
       *
       * Read bucket metadata.
       */
-    def bucket(endpointURI: URI, credential: (String, String), bucketName: String, withSystemMetadata: Boolean = false, withObjectContent:Boolean = false): DataFrame = {
+    def bucket(endpointURI: URI, credential: (String, String), bucketName: String, withSystemMetadata: Boolean = false,
+               withContent: Boolean = false): DataFrame = {
       val parameters = Seq(
         Endpoint -> endpointURI.toString,
         Identity -> credential._1,
         SecretKey -> credential._2,
         BucketName -> bucketName,
         WithSystemMetadata -> withSystemMetadata.toString,
-        WithObjectContent -> withObjectContent.toString).toMap
+        WithContent -> withContent.toString).toMap
 
       read.format(classOf[DefaultSource].getName).options(parameters).load()
     }
