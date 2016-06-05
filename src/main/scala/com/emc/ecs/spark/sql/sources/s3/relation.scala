@@ -150,7 +150,7 @@ private class BucketMetadataRDD(
         obj.getObjectName,
         obj.getQueryMds.find(_.getType == USERMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty),
         obj.getQueryMds.find(_.getType == SYSMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty),
-        if(withContent) download(obj.getObjectName) else null)
+        if(requiredColumns.contains("Content")) download(obj.getObjectName) else null)
     }
 
     objects.map { data => Row.fromSeq(cols.map(_.apply(data))) }
@@ -161,8 +161,6 @@ private class BucketMetadataRDD(
     */
   private def download(objectName: String)(implicit execctx: ExecutionContext) : Future[Array[Byte]] = {
     Future {
-      log.info(s"JMC Entered download")
-
       var gor = new GetObjectRequest(bucketName, objectName)
       val getObjResponse: GetObjectResult[Array[Byte]] = s3Client.getObject(gor,classOf[Array[Byte]])
       getObjResponse.getObject
@@ -181,7 +179,6 @@ private class BucketMetadataRDD(
 
       (field.name, mdtype, field.dataType) match {
         case ("Key", SYSMD, StringType) => (o: ObjectData) => o.key
-        //case ("Content", SYSMD, ByteType) => (o: ObjectData) => Await.result(o.content, Duration.Inf)
         case ("Content", SYSMD, BinaryType) => (o: ObjectData) => Await.result(o.content, Duration.Inf)
         case (name, SYSMD, StringType) => (o: ObjectData) => o.sysmd.getOrElse(sysmd2result(name), null)
         case (name, SYSMD, IntegerType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toInt).orElse(null)
