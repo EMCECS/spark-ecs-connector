@@ -52,10 +52,14 @@ private class BucketMetadataRelation(
       metadataKeys.getIndexableKeys.map(_.toStructField(usermd, indexable = true)).toList ++
 
       // optionally define fields for the sys metadata
-      (if(withSystemMetadata)
-        sysKeys.getIndexableKeys.filterNot(_.getName == ObjectName).map(_.toStructField(sysmd, indexable = true)) ++
-        sysKeys.getOptionalAttributes.map(_.toStructField(sysmd, indexable = false))
-      else Nil) ++
+      (if(withSystemMetadata) {
+          //indexable keys except for ObjectName
+          val indexableSysKeys = sysKeys.getOptionalAttributes.filter(sysKeys.getIndexableKeys() contains).filterNot(_.getName == ObjectName)
+
+          sysKeys.getOptionalAttributes.filterNot(sysKeys.getIndexableKeys() contains).map(_.toStructField(sysmd, indexable = false)) ++
+            sysKeys.getOptionalAttributes.filter(indexableSysKeys contains).map(_.toStructField(sysmd, indexable = true))
+        }
+        else Nil) ++
 
       // define a field for the object key
       Seq(special("Key", ObjectName, StringType, nullable = false, indexable = true)) ++
