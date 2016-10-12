@@ -52,10 +52,33 @@ private class BucketMetadataRelation(
       metadataKeys.getIndexableKeys.map(_.toStructField(usermd, indexable = true)).toList ++
 
       // optionally define fields for the sys metadata
+        /*
       (if(withSystemMetadata)
         sysKeys.getIndexableKeys.filterNot(_.getName == ObjectName).map(_.toStructField(sysmd, indexable = true)) ++
         sysKeys.getOptionalAttributes.map(_.toStructField(sysmd, indexable = false))
+
       else Nil) ++
+*/
+        /*
+        (if(withSystemMetadata) {
+          //indexable keys except for ObjectName
+          val indexableSysKeys = sysKeys.getOptionalAttributes.filter(sysKeys.getIndexableKeys() contains).filterNot(_.getName == ObjectName)
+
+          sysKeys.getOptionalAttributes.filterNot(sysKeys.getIndexableKeys() contains).map(_.toStructField(sysmd, indexable = false)) ++
+            sysKeys.getOptionalAttributes.filter(indexableSysKeys contains).map(_.toStructField(sysmd, indexable = true))
+          //sysKeys.getOptionalAttributes.filter(indexableSysKeys contains)
+          //sysKeys.getOptionalAttributes.filterNot
+        }
+        else Nil) ++
+        */
+        // optionally define fields for the sys metadata.
+        // note that optionalAttributes is a superset of indexableKeys in ECS 2.2.1+, a disjoint set in 2.2.
+        (if(withSystemMetadata) {
+          val indexables = sysKeys.getIndexableKeys.map(_.getName).toSet
+          sysKeys.getIndexableKeys.filterNot(_.getName == ObjectName).map(_.toStructField(sysmd, indexable = true)) ++
+            sysKeys.getOptionalAttributes.filterNot(key => indexables.contains(key.getName)).map(_.toStructField(sysmd, indexable = false))
+        } else Nil) ++
+
 
       // define a field for the object key
       Seq(special("Key", ObjectName, StringType, nullable = false, indexable = true)) ++
