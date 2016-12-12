@@ -41,13 +41,13 @@ trait S3ClientWallet {
   protected[this] lazy val s3Client = new S3JerseyClient(s3Config, new URLConnectionClientHandler())
 }
 
-class ObjectContentRDD(prev:RDD[Any], var endpt: String, var credential: (String, String), var bucketName: String)
-  extends RDD[Any](prev)  with S3ClientWallet with Logging {
+class ObjectContentRDD(prev:RDD[Row], var endpt: String, var credential: (String, String), var bucketName: String)
+  extends RDD[Row](prev)  with S3ClientWallet {
 
   override def getPartitions: Array[Partition] = firstParent[String].partitions
 
   override def compute(split: Partition, context: TaskContext):
-  Iterator[Any] = {
+  Iterator[Row] = {
     firstParent[String].iterator(split, context).map(objKey => {
       log.info(s"Getting object content for: " + objKey)
       var gor = new GetObjectRequest(bucketName, objKey)

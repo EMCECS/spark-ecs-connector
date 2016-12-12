@@ -42,7 +42,7 @@ object Example extends App {
   print("JMC2 created the registered the temp table. Now going to run sql statement\n")
   //sqlContext.sql(sqlStr.format(argbucket).stripMargin)
   val theData = sqlContext.sql(sqlStr)
-  theData.foreach(println)
+  theData.rdd.foreach(println)
   println("JMC-------------------------------------------------------------")
   println(sqlContext.sql(sqlStr.format(argbucket).stripMargin).count)
   println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
@@ -70,7 +70,9 @@ object Example extends App {
   //println("Here is just the 'Key' column value: " + sz)
 
   val keyDf = theData.toDF()
-  val sz = keyDf.map{row=>row.getAs[Any]("Key")} //return RDD[R]
+  //val sz = keyDf.map{row=>row.getAs[Any]("Key")} //return RDD[R]
+  val sz: RDD[Row] = keyDf.rdd
+  sz.map({_.getAs[String]("Key")})
 
   //val s3ClientWalletImpl = new S3ClientWalletImpl("http://10.1.51.83:9020", credential, argbucket)
 
@@ -97,7 +99,16 @@ object Example extends App {
   val contentDf = sqlContext.createDataFrame(contentRDDRows, dfSchema)
   val joinedDf = contentDf.join(keyDf, "Key")
   println("JMC------------------------JOINED OBJECT CONTENT------------------------------------")
-  joinedDf.foreach(println)
+  joinedDf.rdd.foreach(println)
   println("^^^^^^^^^^^^^^^^^^^^^^^^^^^JOINED OBJECT CONTENT^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
+  println("JMC------------------------getting json content------------------------------------")
+  //val jsonUrl = "s3n://" + args(1) + ":" + args(2) + "/" + argbucket + "/*"
+  //val jsonData = sc.textFile(jsonUrl)
+
+  val jsonUrl = "s3a://10.1.83.125:9020/" + args(1) + ":" + args(2) + "/" + argbucket + "/*"
+  val jsonData = sc.textFile(jsonUrl)
+  println("Number of jsonData rows: " + jsonData.count())
+  println("^^^^^^^^^^^^^^^^^^^^^^^^^^^getting json content^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 }
 

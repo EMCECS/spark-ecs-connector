@@ -31,7 +31,7 @@ private class BucketMetadataRelation(
     val withSystemMetadata: Boolean,
     val withContent: Boolean)
     (@transient override val sqlContext: SQLContext)
-  extends BaseRelation with PrunedFilteredScan with HasClient with Logging  {
+  extends BaseRelation with PrunedFilteredScan with HasClient {
 
   import Conversions._
 
@@ -119,7 +119,7 @@ private class BucketMetadataRDD(
     val requiredColumns: Array[String],
     val query: String,
     val withContent: Boolean)
-  extends RDD[Row](sc, Nil) with HasClient with Logging {
+  extends RDD[Row](sc, Nil) with HasClient {
 
   /**
     * Note: the bucket metadata has no meaningful partitions.
