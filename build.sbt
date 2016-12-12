@@ -2,8 +2,9 @@ name := "spark-ecs-s3"
 organization := "com.emc.ecs"
 version := "1.3-SNAPSHOT"
 
-scalaVersion := "2.10.5"
+//scalaVersion := "2.10.5"
 //sparkVersion := "1.6.1"
+scalaVersion := "2.11.1"
 sparkVersion := "2.0.2"
 
 resolvers ++= Seq(
