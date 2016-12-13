@@ -44,11 +44,12 @@ trait S3ClientWallet {
 class ObjectContentRDD(prev:RDD[Row], var endpt: String, var credential: (String, String), var bucketName: String)
   extends RDD[Row](prev)  with S3ClientWallet {
 
-  override def getPartitions: Array[Partition] = firstParent[String].partitions
+  override def getPartitions: Array[Partition] = firstParent[Row].partitions
 
   override def compute(split: Partition, context: TaskContext):
   Iterator[Row] = {
-    firstParent[String].iterator(split, context).map(objKey => {
+    firstParent[Row].iterator(split, context).map(objRow => {
+      var objKey = objRow.getAs[String](0)
       log.info(s"Getting object content for: " + objKey)
       var gor = new GetObjectRequest(bucketName, objKey)
       val getObjResponse: GetObjectResult[String] = s3Client.getObject(gor, classOf[String])
