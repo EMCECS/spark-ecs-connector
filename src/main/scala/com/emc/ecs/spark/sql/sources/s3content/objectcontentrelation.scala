@@ -49,7 +49,7 @@ class ObjectContentRDD(prev:RDD[Row], var endpt: String, var credential: (String
   override def compute(split: Partition, context: TaskContext):
   Iterator[Row] = {
     firstParent[Row].iterator(split, context).map(objRow => {
-      var objKey = objRow.getAs[String](0)
+      var objKey = objRow.getAs[String]("Key")
       log.info(s"Getting object content for: " + objKey)
       var gor = new GetObjectRequest(bucketName, objKey)
       val getObjResponse: GetObjectResult[String] = s3Client.getObject(gor, classOf[String])
