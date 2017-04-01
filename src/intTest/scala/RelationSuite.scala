@@ -42,7 +42,6 @@ class RelationSuite extends WordSpec with Matchers
     "using Scala" should {
       "provide an extension method" in sparkContext { ctx =>
         val df = ctx.sqlContext.read.bucket(endpointUri, credential, dataContext.bucketName)
-        df.printSchema()
       }
     }
   }
@@ -61,7 +60,6 @@ class RelationSuite extends WordSpec with Matchers
 
       "contain sys schema" in sparkContext { implicit ctx =>
         val df = bucket(withSystemMetadata = true)
-        df.printSchema()
         df.schema.fields.map(_.name) should contain allOf ("LastModified", "Owner", "Size", "ContentType", "Etag")
       }
 
@@ -95,9 +93,9 @@ class RelationSuite extends WordSpec with Matchers
       "support user columns" in sparkContext { implicit ctx =>
         import ctx.spark.implicits._
         val expected = exampleData.head._2.integer1
-        val df = bucket().where($"integer1" === expected) //.where("string1 > ''")
+        val df = bucket().where($"integer1" === expected)
         val rows = df.select("integer1").collect()
-        rows(0).getAs[Int]("integer1") shouldEqual expected //exampleData(0)._2.integer1
+        rows(0).getAs[Int]("integer1") shouldEqual expected
       }
 
       "push-down projection" ignore {
@@ -115,10 +113,10 @@ class RelationSuite extends WordSpec with Matchers
       }
     }
 
-    "with content" should {
+    "queried with content" should {
       "download" in sparkContext { implicit ctx =>
         import ctx.spark.implicits._
-        val expected = exampleData.find(_._3.isDefined).head // find an example with real data
+        val expected = exampleData.find(_._3.isDefined).head // find an example with non-empty content
         val df = bucket(withContent = true).where($"integer1" === expected._2.integer1)
         val actual = df.collect().head
         actual.getAs[Array[Byte]]("Content") should contain theSameElementsAs expected._3.get

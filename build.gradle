@@ -53,8 +53,12 @@ dependencies {
     compileOnly "org.apache.spark:spark-core_$versions.scala:$versions.spark",
                 "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
 
+    // 'testCompile' dependencies for unit tests
     testCompile "org.scalatest:scalatest_$versions.scala:2.2.6"
+    testCompile "org.apache.spark:spark-core_$versions.scala:$versions.spark",
+                "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
 
+    // 'intTestCompile' dependencies match a client's use of the shaded jar
     intTestCompile "junit:junit:4.10"
     intTestCompile "org.scalatest:scalatest_$versions.scala:2.2.6"
     intTestCompile "org.apache.spark:spark-core_$versions.scala:$versions.spark",
