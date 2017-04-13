@@ -1,5 +1,6 @@
 import java.net.URI
 import java.sql.Timestamp
+import java.time.Instant
 
 import com.emc.ecs.spark.sql.sources.s3._
 import com.emc.ecs.spark.util.ExampleData._
@@ -79,6 +80,14 @@ class RelationSuite extends WordSpec with Matchers
       }
       "push-down indexed columns" ignore {
         // TODO verify predicate push-down
+      }
+
+      "support querying by date" in sparkContext { implicit ctx =>
+        import ctx.spark.implicits._
+        val date = Timestamp.from(Instant.EPOCH)
+        val df = bucket(withSystemMetadata = true).where($"datetime1" > date)
+        val rows = df.collect()
+        rows.length should be (exampleData.length)
       }
     }
 

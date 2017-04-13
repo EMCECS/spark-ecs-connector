@@ -50,8 +50,6 @@ dependencies {
         exclude group: "org.slf4j", module: "slf4j-log4j12"
     }
 
-    compileOnly "joda-time:joda-time:2.9.2"
-
     compileOnly "org.apache.spark:spark-core_$versions.scala:$versions.spark",
                 "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
 
