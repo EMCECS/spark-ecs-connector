@@ -8,6 +8,8 @@ plugins {
     id 'scala' // for Scala build support
     id 'com.github.johnrengelman.shadow' version '1.2.3' // to build an uber jar
     id 'maven-publish'
+    id 'signing'
+    id 'maven'
 }
 
 ext {
@@ -15,7 +17,7 @@ ext {
 }
 
 group 'com.emc.ecs'
-version '1.4-SNAPSHOT'
+version '1.4'
 
 /**
  * Sources
@@ -95,6 +97,99 @@ publishing {
 }
 
 /**
+ * Maven Central
+ */
+gradle.taskGraph.whenReady { taskGraph ->
+    Thread.sleep(500) // trying to get rid of a bug where build status message overwrites the first prompt
+    if (taskGraph.hasTask(':uploadJars')) {
+        if (!project.hasProperty('signingPass')) {
+            project.ext.signingPass = new String(System.console().readPassword('\nSigning key passphrase: '))
+        }
+        if (!project.hasProperty('sonatypeUsername')) {
+            project.ext.sonatypeUsername = new String(System.console().readLine('\nSonatype username: '))
+        }
+        if (!project.hasProperty('sonatypePass')) {
+            project.ext.sonatypePass = new String(System.console().readPassword('\nSonatype password: '))
+        }
+        ext.'signing.keyId' = 'A4385DAD'
+        ext.'signing.secretKeyRingFile' = '/home/signer/.gnupg/secring.gpg'
+        ext.'signing.password' = project.ext.signingPass
+        uploadJars.repositories.mavenDeployer.repository.authentication.userName = project.ext.sonatypeUsername
+        uploadJars.repositories.mavenDeployer.repository.authentication.password = project.ext.sonatypePass
+    }
+}
+
+configurations {
+    jars.extendsFrom(signatures)
+}
+
+javadoc {
+    if (JavaVersion.current() >= JavaVersion.VERSION_1_8) options.addStringOption('Xdoclint:none', '-quiet')
+    else options.quiet()
+}
+
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from "${docsDir}/javadoc"
+}
+javadocJar.dependsOn javadoc
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    jars shadowJar
+    jars javadocJar
+    jars sourcesJar
+}
+
+signing {
+    required { gradle.taskGraph.hasTask(':uploadJars') }
+    sign configurations.jars
+}
+
+uploadJars {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: 'https://oss.sonatype.org/service/local/staging/deploy/maven2/') {
+                authentication(userName: '', password: '')
+            }
+
+            pom.project {
+                name project.name
+                description 'The spark-ecs-s3 project makes it possible to view an ECS bucket as a Spark dataframe'
+                url 'https://github.com/EMCECS/spark-ecs-s3'
+
+                scm {
+                    url "https://github.com/EMCECS/${project.name}"
+                    connection "scm:git@github.com:EMCECS/${project.name}.git"
+                    developerConnection "scm:git@github.com:EMCECS/${project.name}.git"
+                }
+
+                licenses {
+                    license {
+                        name 'The BSD 3-Clause License'
+                        url 'http://opensource.org/licenses/BSD-3-Clause'
+                        distribution 'repo'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id 'EMCECS'
+                        name 'EMC ECS'
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
  * Testing
  */
 task intTest(type: Test, group: "Test") {
@@ -113,4 +208,3 @@ task intTest(type: Test, group: "Test") {
         }
     })
 }
-
