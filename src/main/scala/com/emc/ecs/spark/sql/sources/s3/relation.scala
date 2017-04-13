@@ -2,8 +2,8 @@ package com.emc.ecs.spark.sql.sources.s3
 
 import java.net.URI
 import java.sql.Timestamp
+import java.time.Instant
 import java.util.concurrent.Executors
-import org.joda.time.Instant
 
 import com.emc.`object`.s3.bean._
 import com.emc.`object`.s3.request.{GetObjectRequest, QueryObjectsRequest}
@@ -134,10 +134,12 @@ private class BucketMetadataRDD(
       .withAttributes(projectedAttributes)
 
     implicit val executionContext = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
-    paged(request).flatMap(p=> readRows(p))
-  }
-  case class ObjectData(key: String, usermd: Map[String,String], sysmd: Map[String,String], content: Future[Array[Byte]])
+    context.addTaskCompletionListener(_ => executionContext.shutdownNow())
 
+    paged(request).flatMap(readRows)
+  }
+
+  case class ObjectData(key: String, usermd: Map[String,String], sysmd: Map[String,String], content: Future[Array[Byte]])
 
   /**
     * Convert the given query result to Spark Sql rows.
@@ -146,7 +148,7 @@ private class BucketMetadataRDD(
     * @return a sequence of rows
     */
   private def readRows(result: QueryObjectsResult)(implicit execctx: ExecutionContext): Seq[Row] = {
-    val objects = result.getObjects.map { obj =>
+    val  objects = result.getObjects.map { obj =>
       ObjectData(
         obj.getObjectName,
         obj.getQueryMds.find(_.getType == USERMD).map(_.getMdMap.toMap).getOrElse[Map[String,String]](Map.empty),
@@ -187,7 +189,7 @@ private class BucketMetadataRDD(
         case (name, SYSMD, DoubleType) => (o: ObjectData) => o.sysmd.get(sysmd2result(name)).filterNot(_.isEmpty).map(_.toDouble).orElse(null)
         case (name, USERMD, StringType) => (o: ObjectData) => o.usermd.getOrElse(col2meta(name), null)
         case (name, USERMD, IntegerType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(_.toInt).orElse(null)
-        case (name, USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(Instant.parse).orElse(null)
+        case (name, USERMD, TimestampType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(s => Timestamp.from(Instant.parse(s))).orElse(null)
         case (name, USERMD, DoubleType) => (o: ObjectData) => o.usermd.get(col2meta(name)).filterNot(_.isEmpty).map(_.toDouble).orElse(null)
         case (_, _, dt) => sys.error(s"unsupported dataType [$dt]")
       }
@@ -207,33 +209,10 @@ private class BucketMetadataRDD(
     "Expiration" -> "expiration",
     "ContentEncoding" -> "encoding",
     "Expires" -> "Expires",
+    "Retention" -> "retention",
+    "Namespace" -> "namespace",
+    "Etag" -> "etag",
     "Retention" -> "retention"
   ).toMap.withDefaultValue(null)
-}
-
-class DefaultSource extends RelationProvider {
-
-  import DefaultSource._
-
-  override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation = {
-    val endpointUri = parameters.get(Endpoint).map(URI.create).getOrElse(sys.error(s"'$Endpoint' must be specified"))
-    val identity = parameters.getOrElse(Identity, sys.error(s"'$Identity' must be specified"))
-    val secretKey = parameters.getOrElse(SecretKey, sys.error(s"'$SecretKey' must be specified"))
-
-    val bucketName = parameters.getOrElse(BucketName, sys.error(s"'$BucketName' must be specified"))
-    val withSystemMetadata = parameters.get(WithSystemMetadata).map(_.toBoolean).getOrElse(false)
-    val withContent = parameters.get(WithContent).map(_.toBoolean).getOrElse(false)
-
-    new BucketMetadataRelation((identity, secretKey), endpointUri, bucketName, withSystemMetadata, withContent)(sqlContext)
-  }
-}
-
-object DefaultSource {
-  val BucketName = "bucket"
-  val WithSystemMetadata = "sysmd"
-  val WithContent = "content"
-  val Endpoint = "endpoint"
-  val Identity = "identity"
-  val SecretKey = "secretKey"
 }
 

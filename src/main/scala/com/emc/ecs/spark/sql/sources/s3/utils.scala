@@ -2,13 +2,15 @@ package com.emc.ecs.spark.sql.sources.s3
 
 import java.net.URI
 import java.sql.Timestamp
+
 import org.joda.time.Instant
-import com.emc.`object`.s3.S3Config
+import com.emc.`object`.s3.{S3Client, S3Config}
 import com.emc.`object`.s3.bean.{MetadataSearchDatatype, MetadataSearchKey}
 import com.emc.`object`.s3.jersey.S3JerseyClient
 import com.sun.jersey.client.urlconnection.URLConnectionClientHandler
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
+
 import scala.util.matching.Regex._
 
 /**
@@ -120,5 +122,9 @@ trait HasClient {
     .withUseVHost(false)
     .withIdentity(credential._1).withSecretKey(credential._2)
 
-  protected[this] lazy val s3Client = new S3JerseyClient(s3Config, new URLConnectionClientHandler())
+  protected[this] lazy val s3Client = new S3JerseyClient(s3Config)
+}
+
+trait Logging {
+  
 }

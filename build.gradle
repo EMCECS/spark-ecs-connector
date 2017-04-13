@@ -1,0 +1,116 @@
+buildscript {
+    repositories {
+        jcenter() // for shadow plugin
+    }
+}
+
+plugins {
+    id 'scala' // for Scala build support
+    id 'com.github.johnrengelman.shadow' version '1.2.3' // to build an uber jar
+    id 'maven-publish'
+}
+
+ext {
+    versions = [:]
+}
+
+group 'com.emc.ecs'
+version '1.4-SNAPSHOT'
+
+/**
+ * Sources
+ */
+sourceCompatibility = "1.8"
+
+sourceSets {
+    intTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath  //+ sourceSets.test.output
+    }
+}
+
+/**
+ * Dependencies
+ */
+versions += [
+        scala     : "2.11",
+        scalaPatch: "1",
+        spark     : "2.0.1"
+]
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    compile("com.emc.ecs:object-client:3.0.1") {
+        exclude group: "org.slf4j", module: "slf4j-api"
+        exclude group: "org.slf4j", module: "slf4j-log4j12"
+    }
+
+    compileOnly "joda-time:joda-time:2.9.2"
+
+    compileOnly "org.apache.spark:spark-core_$versions.scala:$versions.spark",
+                "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
+
+    // 'testCompile' dependencies for unit tests
+    testCompile "org.scalatest:scalatest_$versions.scala:2.2.6"
+    testCompile "org.apache.spark:spark-core_$versions.scala:$versions.spark",
+                "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
+
+    // 'intTestCompile' dependencies match a client's use of the shaded jar
+    intTestCompile "junit:junit:4.10"
+    intTestCompile "org.scalatest:scalatest_$versions.scala:2.2.6"
+    intTestCompile "org.apache.spark:spark-core_$versions.scala:$versions.spark",
+                   "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
+}
+
+/**
+ * Publishing
+ */
+jar.enabled = false
+
+shadowJar {
+    baseName "${project.name}_${versions.scala}"
+    classifier ""
+    relocate 'org.apache.commons', 'com.emc.ecs.shaded.org.apache.commons'
+    relocate 'com.sun.ws.rs', 'com.emc.ecs.shaded.com.sun.ws.rs'
+    relocate 'javax.ws.rs', 'com.emc.ecs.shaded.javax.ws.rs'
+    relocate 'org.apache.http', 'com.emc.ecs.shaded.org.apache.http'
+    relocate 'com.sun.jersey', 'com.emc.ecs.shaded.com.sun.jersey'
+    relocate 'org.jdom2', 'com.emc.ecs.shaded.org.jdom2'
+    relocate 'SevenZip', 'com.emc.ecs.shaded.SevenZip'
+    mergeServiceFiles()
+}
+
+assemble.dependsOn(shadowJar)
+
+publishing {
+    publications {
+        shadow(MavenPublication) {
+            artifactId "${project.name}_${versions.scala}"
+            from components.shadow
+        }
+    }
+}
+
+/**
+ * Testing
+ */
+task intTest(type: Test, group: "Test") {
+    testClassesDir = sourceSets.intTest.output.classesDir
+    classpath = files(shadowJar.outputs) + sourceSets.intTest.runtimeClasspath
+    systemProperties project.properties.subMap(["s3.endpoint", "s3.accessKeyId", "s3.secretAccessKey"])
+
+    systemProperty "com.emc.ecs.shaded.org.apache.commons.logging.Log","com.emc.ecs.shaded.org.apache.commons.logging.impl.Log4JLogger"
+
+    onlyIf(new Spec<Task>() {
+        @Override
+        boolean isSatisfiedBy(Task task) {
+            return project.properties.containsKey("s3.endpoint") &&
+                    project.properties.containsKey("s3.accessKeyId") &&
+                    project.properties.containsKey("s3.secretAccessKey")
+        }
+    })
+}
+
