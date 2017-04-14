@@ -17,7 +17,7 @@ ext {
 }
 
 group 'com.emc.ecs'
-version '1.4'
+version '1.4.0'
 
 /**
  * Sources
@@ -44,14 +44,20 @@ repositories {
     mavenCentral()
 }
 
+configurations {
+    provided
+}
+
 dependencies {
     compile("com.emc.ecs:object-client:3.0.1") {
         exclude group: "org.slf4j", module: "slf4j-api"
         exclude group: "org.slf4j", module: "slf4j-log4j12"
     }
 
-    compileOnly "org.apache.spark:spark-core_$versions.scala:$versions.spark",
-                "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
+    provided "org.apache.spark:spark-core_$versions.scala:$versions.spark",
+             "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
+
+    compileOnly configurations.provided
 
     // 'testCompile' dependencies for unit tests
     testCompile "org.scalatest:scalatest_$versions.scala:2.2.6"
@@ -148,6 +154,35 @@ signing {
     sign configurations.jars
 }
 
+def projectPom = {
+    project {
+        name project.name
+        description 'The spark-ecs-s3 project makes it possible to view an ECS bucket as a Spark dataframe'
+        url 'https://github.com/EMCECS/spark-ecs-s3'
+
+        scm {
+            url "https://github.com/EMCECS/${project.name}"
+            connection "scm:git@github.com:EMCECS/${project.name}.git"
+            developerConnection "scm:git@github.com:EMCECS/${project.name}.git"
+        }
+
+        licenses {
+            license {
+                name 'The BSD 3-Clause License'
+                url 'http://opensource.org/licenses/BSD-3-Clause'
+                distribution 'repo'
+            }
+        }
+
+        developers {
+            developer {
+                id 'EMCECS'
+                name 'EMC ECS'
+            }
+        }
+    }
+}
+
 uploadJars {
     repositories {
         mavenDeployer {
@@ -157,31 +192,11 @@ uploadJars {
                 authentication(userName: '', password: '')
             }
 
-            pom.project {
-                name project.name
-                description 'The spark-ecs-s3 project makes it possible to view an ECS bucket as a Spark dataframe'
-                url 'https://github.com/EMCECS/spark-ecs-s3'
+            pom projectPom
 
-                scm {
-                    url "https://github.com/EMCECS/${project.name}"
-                    connection "scm:git@github.com:EMCECS/${project.name}.git"
-                    developerConnection "scm:git@github.com:EMCECS/${project.name}.git"
-                }
-
-                licenses {
-                    license {
-                        name 'The BSD 3-Clause License'
-                        url 'http://opensource.org/licenses/BSD-3-Clause'
-                        distribution 'repo'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'EMCECS'
-                        name 'EMC ECS'
-                    }
-                }
+            pom.scopeMappings.addMapping(1000, configurations.provided, 'provided')
+            pom.whenConfigured { pom ->
+                pom.dependencies.removeAll { it.scope != 'provided' }
             }
         }
     }
