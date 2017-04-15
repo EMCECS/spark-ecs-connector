@@ -44,20 +44,14 @@ repositories {
     mavenCentral()
 }
 
-configurations {
-    provided
-}
-
 dependencies {
     compile("com.emc.ecs:object-client:3.0.1") {
         exclude group: "org.slf4j", module: "slf4j-api"
         exclude group: "org.slf4j", module: "slf4j-log4j12"
     }
 
-    provided "org.apache.spark:spark-core_$versions.scala:$versions.spark",
-             "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
-
-    compileOnly configurations.provided
+    compileOnly "org.apache.spark:spark-core_$versions.scala:$versions.spark",
+            "org.apache.spark:spark-sql_$versions.scala:$versions.spark"
 
     // 'testCompile' dependencies for unit tests
     testCompile "org.scalatest:scalatest_$versions.scala:2.2.6"
@@ -157,7 +151,7 @@ signing {
 def projectPom = {
     project {
         name project.name
-        description 'The spark-ecs-s3 project makes it possible to view an ECS bucket as a Spark dataframe'
+        description 'The spark-ecs-s3 project makes it possible to work with data stored in ECS using Apache Spark.'
         url 'https://github.com/EMCECS/spark-ecs-s3'
 
         scm {
@@ -168,8 +162,8 @@ def projectPom = {
 
         licenses {
             license {
-                name 'The BSD 3-Clause License'
-                url 'http://opensource.org/licenses/BSD-3-Clause'
+                name 'The Apache Software License, Version 2.0'
+                url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
                 distribution 'repo'
             }
         }
@@ -194,7 +188,7 @@ uploadJars {
 
             pom projectPom
 
-            pom.scopeMappings.addMapping(1000, configurations.provided, 'provided')
+            pom.scopeMappings.addMapping(1000, configurations.compileOnly, 'provided')
             pom.whenConfigured { pom ->
                 pom.dependencies.removeAll { it.scope != 'provided' }
             }
