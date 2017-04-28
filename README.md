@@ -13,7 +13,10 @@ Spark SQL supports querying external data sources and rendering the results as a
 # Using
 
 ### Linking to your Spark 2.x Application
-The library is published to Maven Central.  Link to the library using these dependency coordinates: `com.emc.ecs:spark-ecs-s3_2.11:jar:1.4.1`
+The library is published to Maven Central.  Link to the library using these dependency coordinates: 
+```
+com.emc.ecs:spark-ecs-s3_2.11:1.4.1
+```
 
 ### Using in Zeppelin
 1. Install Zeppelin 0.7+.
@@ -24,7 +27,7 @@ Create a notebook with the following commands.   Replace `***` with your S3 cred
 
 ```
 %dep
-z.load("com.emc.ecs:spark-ecs-s3_2.11:jar:1.4.1")
+z.load("com.emc.ecs:spark-ecs-s3_2.11:1.4.1")
 ```
 
 ```
