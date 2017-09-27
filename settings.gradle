@@ -16,4 +16,4 @@ include 'api'
 include 'services:webservice'
 */
 
-rootProject.name = 'spark-ecs-s3'
+rootProject.name = 'spark-ecs-connector'

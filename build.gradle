@@ -151,8 +151,8 @@ signing {
 def projectPom = {
     project {
         name project.name
-        description 'The spark-ecs-s3 project makes it possible to work with data stored in ECS using Apache Spark.'
-        url 'https://github.com/EMCECS/spark-ecs-s3'
+        description 'The spark-ecs-connector project makes it possible to work with data stored in ECS using Apache Spark.'
+        url 'https://github.com/EMCECS/spark-ecs-connector'
 
         scm {
             url "https://github.com/EMCECS/${project.name}"
